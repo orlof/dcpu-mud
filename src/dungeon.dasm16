@@ -1,0 +1,469 @@
+
+;----------------------------------------------------------------
+:choice
+; (*pascal_list)
+; pascal list is "n, x0, x1, x2, x3, x4..., xn"
+;----------------------------------------------------------------
+    set push, 1
+    jsr preamble
+
+    jsr rnd
+
+    set a, ARG_1_OF_1
+    mod x, [a]
+    add x, a
+    set x, [x+1]
+
+    set pc, postamble
+
+;----------------------------------------------------------------
+:rnd_room_loc
+; (len, max)
+;----------------------------------------------------------------
+    set push, 2
+    jsr preamble
+
+    jsr rnd
+
+    sub ARG_2_OF_2, ARG_1_OF_2
+    sub ARG_2_OF_2, 4
+    mod x, ARG_2_OF_2
+    add x, 2
+    bor x, 1
+
+    set pc, postamble
+
+;----------------------------------------------------------------
+:check_tile
+; (tile, addr)
+;----------------------------------------------------------------
+    set x, pop
+    ife [x], pop
+        set pc, map__rect__x_loop
+    set x, FALSE
+    set pc, postamble
+
+;----------------------------------------------------------------
+:set_tile
+; (tile, addr)
+;----------------------------------------------------------------
+    set x, pop
+    set [x], pop
+    set pc, map__rect__x_loop
+
+;----------------------------------------------------------------
+:map__rect
+; (x, y, w, h, func(addr, const), const)
+;----------------------------------------------------------------
+    set push, 6
+    jsr preamble
+
+    set y, ARG_5_OF_6
+
+    set j, ARG_2_OF_6
+    add j, ARG_4_OF_6
+    :map__rect__y_loop
+        sub j, 1
+        ifu j, ARG_2_OF_6
+          set pc, map__rect__exit_y_loop
+
+        set i, ARG_1_OF_6
+        add i, ARG_3_OF_6
+        :map__rect__x_loop
+            sub i, 1
+            ifu i, ARG_1_OF_6
+                set pc, map__rect__y_loop
+
+            set push, ARG_6_OF_6
+            set push, MAP_WIDTH
+            mul [sp], j
+            add [sp], i
+            add [sp], map_buffer
+                set pc, ARG_5_OF_6
+
+            set pc, map__rect__x_loop
+
+    :map__rect__exit_y_loop
+    set x, TRUE
+    set pc, postamble
+
+;----------------------------------------------------------------
+:create_room
+; (id)
+;----------------------------------------------------------------
+    set push, 1
+    jsr preamble
+
+    set push, valid_room_widths
+        jsr choice
+    set a, x
+
+    set push, x
+    set push, MAP_WIDTH
+        jsr rnd_room_loc
+    set i, x
+
+    set push, valid_room_heights
+        jsr choice
+    set b, x
+
+    set push, x
+    set push, MAP_HEIGHT
+        jsr rnd_room_loc
+    set j, x
+
+    set push, i
+    set push, j
+    set push, a
+    set push, b
+    set push, check_tile
+    set push, TILE_WALL
+        jsr map__rect
+
+    ife x, FALSE
+        set pc, postamble
+
+    set push, i
+    set push, j
+    set push, a
+    set push, b
+    set push, set_tile
+    set push, 0xf030
+    add [sp], ARG_1_OF_1
+        jsr map__rect
+
+    set pc,postamble
+
+;----------------------------------------------------------------
+:create_dungeon
+; (max_num_rooms)
+;----------------------------------------------------------------
+    set push, 1
+    jsr preamble
+
+    jsr clear_dungeon
+
+    set push, ARG_1_OF_1
+        jsr create_rooms
+
+    jsr create_maze
+    jsr connect_dungeon
+    jsr uncarving
+
+    set [map_buffer + (MAP_HEIGHT-2) * MAP_WIDTH + MAP_WIDTH-2], TILE_UP
+
+    jsr lay_darkness
+
+    set pc, postamble
+
+;----------------------------------------------------------------
+:lay_darkness
+;----------------------------------------------------------------
+    set push, 0
+    jsr preamble
+
+    set i, map_buffer
+    set a, map_buffer__end
+    set b, lay_darkness__loop
+    set c, 0x00ff
+    :lay_darkness__loop
+        ife i, a
+            set pc, postamble
+
+        and [i], c
+        sti pc, b
+
+;----------------------------------------------------------------
+:uncarving
+;----------------------------------------------------------------
+    set push, 0
+    jsr preamble
+
+:uncarving__restart
+    set a, 0
+    set i, map_buffer + MAP_WIDTH + 2
+:uncarving__loop
+    ife i, map_buffer__end - MAP_WIDTH - 2
+        set pc, uncarving__loop__end
+
+    ife [i], TILE_WALL
+        sti pc, uncarving__loop
+
+    set c, 0
+    ife [i - MAP_WIDTH], TILE_WALL
+        add c, 1
+    ife [i + MAP_WIDTH], TILE_WALL
+        add c, 1
+    ife [i - 1], TILE_WALL
+        add c, 1
+    ife [i + 1], TILE_WALL
+        add c, 1
+
+    ifn c, 3
+        sti pc, uncarving__loop
+
+    set [i], TILE_WALL
+    set a, 1
+
+    sti pc, uncarving__loop
+
+:uncarving__loop__end
+    ifn a, 0
+        set pc, uncarving__restart
+
+    set pc, postamble
+
+;----------------------------------------------------------------
+:create_rooms
+; (max_num_rooms)
+;----------------------------------------------------------------
+    set push, 1
+    jsr preamble
+
+:create_rooms__loop
+    ife ARG_1_OF_1, 0
+        set pc, postamble
+
+    set push, ARG_1_OF_1
+        jsr create_room
+
+    sub ARG_1_OF_1, 1
+    set pc, create_rooms__loop
+
+;----------------------------------------------------------------
+:create_maze
+;----------------------------------------------------------------
+    set push, 0
+    jsr preamble
+
+    set c, sp
+
+    set push, 1
+    set push, 1
+
+:create_dungeon__maze__retrace
+    ife c, sp
+        set pc, postamble
+
+    set j, pop
+    set i, pop
+
+:create_dungeon__maze__advance
+    set a, j
+    mul a, MAP_WIDTH
+    add a, i
+    add a, map_buffer
+    set [a], TILE_FLOOR
+
+    set b, sp
+    ifa j, 1
+        ife [a - (2 * MAP_WIDTH)], TILE_WALL
+            set push, create_dungeon__maze__up
+
+    ifu j, MAP_HEIGHT - 2
+        ife [a + (2 * MAP_WIDTH)], TILE_WALL
+            set push, create_dungeon__maze__down
+
+    ifa i, 1
+        ife [a-2], TILE_WALL
+            set push, create_dungeon__maze__left
+
+    ifu i, MAP_WIDTH - 2
+        ife [a+2], TILE_WALL
+            set push, create_dungeon__maze__right
+
+    ife b, sp
+        set pc, create_dungeon__maze__retrace
+
+    set y, b
+    sub y, sp
+
+    jsr rnd
+    mod x, y
+    add sp, x
+    set x, pop
+    set sp, b
+
+    set push, i
+    set push, j
+
+    set pc, x
+
+:create_dungeon__maze__up
+    set [a - MAP_WIDTH], TILE_FLOOR
+    set [a - 2 * MAP_WIDTH], TILE_FLOOR
+    sub j, 2
+
+    set pc, create_dungeon__maze__advance
+
+:create_dungeon__maze__down
+    set [a + MAP_WIDTH], TILE_FLOOR
+    set [a + 2 * MAP_WIDTH], TILE_FLOOR
+    add j, 2
+
+    set pc, create_dungeon__maze__advance
+
+:create_dungeon__maze__left
+    set [a - 1], TILE_FLOOR
+    set [a - 2], TILE_FLOOR
+    sub i, 2
+
+    set pc, create_dungeon__maze__advance
+
+:create_dungeon__maze__right
+    set [a + 1], TILE_FLOOR
+    set [a + 2], TILE_FLOOR
+    add i, 2
+
+    set pc, create_dungeon__maze__advance
+
+;----------------------------------------------------------------
+:connect_room
+;----------------------------------------------------------------
+    set push, 1
+    jsr preamble
+
+    set a, ARG_1_OF_1       ; NW-wall-corner
+    set c, sp
+
+    set i, map_buffer + 2 * MAP_WIDTH + 2
+    set b, map_buffer__end - 2 * MAP_WIDTH - 2
+:connect_room__loop
+    ife i, b
+        set pc, connect_room__open_passage
+    ifn [i], TILE_WALL
+        sti pc, connect_room__loop
+
+    ife [i - MAP_WIDTH], [a]
+        ifn [i + MAP_WIDTH], TILE_WALL
+            set push, i
+
+    ife [i + MAP_WIDTH], [a]
+        ifn [i - MAP_WIDTH], TILE_WALL
+            set push, i
+
+    ife [i - 1], [a]
+        ifn [i + 1], TILE_WALL
+            set push, i
+
+    ife [i + 1], [a]
+        ifn [i - 1], TILE_WALL
+            set push, i
+
+    sti pc, connect_room__loop
+
+:connect_room__open_passage
+    set b, c
+    sub b, sp
+
+    ; ife b, 0
+    ;    set a, a
+
+    jsr rnd
+    mod x, b
+    set b, sp
+    add b, x
+    set x, [b]
+
+    ; x now contains the door address
+    set b, TILE_FLOOR
+
+    set a, ARG_1_OF_1
+    ifn [x + 1], TILE_FLOOR
+        ifn [x - 1], TILE_FLOOR
+            ifn [x + MAP_WIDTH], TILE_FLOOR
+                ifn [x - MAP_WIDTH], TILE_FLOOR
+                    set b, [a]
+
+    set push, x
+    set push, b
+        jsr flood_fill
+
+    jsr rnd
+    mod x, 10
+    ife x, 0
+        set pc, connect_room__open_passage
+
+    set sp, c
+
+    set pc, postamble
+
+;----------------------------------------------------------------
+:flood_fill
+; (addr, replacement_tile)
+;----------------------------------------------------------------
+    set push, 2
+    jsr preamble
+
+    set a, ARG_1_OF_2
+    set c, ARG_2_OF_2
+
+    set y, sp
+    set push, a
+
+:flood_fill__loop
+    set a, pop
+    set [a], c
+
+    sub a, MAP_WIDTH
+    ifn [a], TILE_WALL
+        ifn [a], c
+            set push, a
+
+    add a, MAP_WIDTH - 1
+    ifn [a], TILE_WALL
+        ifn [a], c
+            set push, a
+
+    add a, 2
+    ifn [a], TILE_WALL
+        ifn [a], c
+            set push, a
+
+    add a, MAP_WIDTH - 1
+    ifn [a], TILE_WALL
+        ifn [a], c
+            set push, a
+
+    ifn y, sp
+        set pc, flood_fill__loop
+
+    set pc, postamble
+
+;----------------------------------------------------------------
+:connect_dungeon
+;----------------------------------------------------------------
+    set push, 0
+    jsr preamble
+
+:connect_dungeon__restart
+    set i, map_buffer
+:connect_dungeon__loop
+    ife i, map_buffer__end
+        set pc, postamble
+    ife [i], TILE_WALL
+        sti pc, connect_dungeon__loop
+    ife [i], TILE_FLOOR
+        sti pc, connect_dungeon__loop
+
+    set push, i
+        jsr connect_room
+
+    sti pc, connect_dungeon__restart
+
+;----------------------------------------------------------------
+:clear_dungeon
+;----------------------------------------------------------------
+    set push, 0
+    set push, 0
+    set push, MAP_WIDTH
+    set push, MAP_HEIGHT
+    set push, set_tile
+    set push, TILE_WALL
+        jsr map__rect
+
+    set pc, pop
+
+:map_buffer
+    #fill 0 MAP_WIDTH * MAP_HEIGHT
+:map_buffer__end

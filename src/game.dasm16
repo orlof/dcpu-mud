@@ -1,0 +1,307 @@
+:main
+    jsr detect_hardware
+
+    set a, 3
+    set b, 0
+    hwi [monitor]
+
+:start
+;    set sp, 0
+
+    set [pc_y], 1
+    set [pc_x], 1
+
+    set a, 0
+    set b, title_videoram
+    hwi [monitor]
+
+    set a, 1
+    set b, title_fontram
+    hwi [monitor]
+
+    set a, 2
+    set b, title_palette
+    hwi [monitor]
+
+    jsr press_any_key
+    ife c, 'q'
+        ifn sp, 0
+            set pc, exit_2
+
+    set a, 0
+    set b, videoram
+    hwi [monitor]
+
+    set a, 1
+    set b, lem_default_font
+    hwi [monitor]
+
+    set a, 2
+    set b, lem_default_palette
+    hwi [monitor]
+
+    jsr clear_screen
+
+    set push, welcome_screen
+    jsr centre_page
+
+    set push, ROOM_CANDIDATES
+       jsr create_dungeon
+
+    set push, press_any_key_str
+    jsr centre
+
+    jsr press_any_key
+
+    jsr lift_darkness
+
+    jsr clear_screen
+    jsr draw_map
+    jsr draw_pc
+
+:game_loop
+    set push, key_handlers
+    jsr key_typed_handler
+
+    jsr lift_darkness
+
+    jsr draw_map
+    jsr draw_pc
+    jsr check_escape
+
+    set pc, game_loop
+
+;----------------------------------------------------------------
+:lift_darkness
+;----------------------------------------------------------------
+    set push, 0
+    jsr preamble
+
+    set a, [pc_y]
+    mul a, MAP_WIDTH
+    add a, [pc_x]
+
+    set c, map_buffer - MAP_WIDTH - 1
+        jsr lift_darkness__block
+    set c, map_buffer - MAP_WIDTH
+        jsr lift_darkness__block
+    set c, map_buffer - MAP_WIDTH + 1
+        jsr lift_darkness__block
+
+    set c, map_buffer - 1
+        jsr lift_darkness__block
+    set c, map_buffer
+        jsr lift_darkness__block
+    set c, map_buffer + 1
+        jsr lift_darkness__block
+
+    set c, map_buffer + MAP_WIDTH - 1
+        jsr lift_darkness__block
+    set c, map_buffer + MAP_WIDTH
+        jsr lift_darkness__block
+    set c, map_buffer + MAP_WIDTH + 1
+        jsr lift_darkness__block
+
+    set pc, postamble
+
+    :lift_darkness__block
+        add c, a
+        set b, [c]
+        and b, 0x00FF
+        div b, 2
+
+        bor [c], [b + tiles]
+        set pc, pop
+
+;----------------------------------------------------------------
+:check_escape
+;----------------------------------------------------------------
+    set x, [pc_y]
+    mul x, MAP_WIDTH
+    add x, [pc_x]
+
+    ifn [x + map_buffer], TILE_UP
+        set pc, pop
+
+    jsr clear_screen
+
+    set push, escape_screen
+    jsr centre_page
+
+    set push, 9
+    set push, 10
+    set push, press_any_key_str
+        jsr print_str
+
+    jsr press_any_key
+
+    add sp, 1
+    set pc, start
+
+;----------------------------------------------------------------
+:print_death_message
+;----------------------------------------------------------------
+    jsr clear_screen
+
+    set push, 9
+    set push, 5
+    set push, dead_message
+        jsr print_str
+
+    set push, 13
+    set push, 6
+    set push, [level]
+        jsr print_word
+
+    set push, 9
+    set push, 10
+    set push, press_any_key_str
+        jsr print_str
+
+    jsr press_any_key
+
+    set pc, start
+
+:action__quit
+    jsr clear_screen
+
+    set push, 9
+    set push, 5
+    set push, quit_message
+        jsr print_str
+
+    set push, 13
+    set push, 6
+    set push, [level]
+        jsr print_word
+
+    set push, 9
+    set push, 10
+    set push, press_any_key_str
+        jsr print_str
+
+    jsr press_any_key
+
+:exit
+    add sp, 3
+    ife sp, 0
+        set pc, start
+
+:exit_2
+    set a, 1
+    set b, 0
+    hwi [monitor]
+
+    set a, 2
+    set b, 0
+    hwi [monitor]
+
+    set a, 0
+    hwi [keyboard]
+
+    set pc, pop
+
+:action__move_north
+    set x, [pc_y]
+    sub x, 1
+    mul x, MAP_WIDTH
+    add x, [pc_x]
+
+    ifn [x + map_buffer], TILE_WALL
+        sub [pc_y], 1
+    set pc, pop
+
+:action__move_south
+    set x, [pc_y]
+    add x, 1
+    mul x, MAP_WIDTH
+    add x, [pc_x]
+
+    ifn [x + map_buffer], TILE_WALL
+        add [pc_y], 1
+    set pc, pop
+
+:action__move_west
+    set x, [pc_y]
+    mul x, MAP_WIDTH
+    add x, [pc_x]
+
+    ifn [x + map_buffer - 1], TILE_WALL
+        sub [pc_x], 1
+    set pc, pop
+
+:action__move_east
+    set x, [pc_y]
+    mul x, MAP_WIDTH
+    add x, [pc_x]
+
+    ifn [x + map_buffer + 1], TILE_WALL
+        add [pc_x], 1
+    set pc, pop
+
+;----------------------------------------------------------------
+:draw_pc
+;----------------------------------------------------------------
+    set [videoram + 170], TILE_PC
+    set [videoram + 171], TILE_PC + 1
+    set pc, pop
+
+;----------------------------------------------------------------
+:draw_map
+;----------------------------------------------------------------
+    set push, 0
+    jsr preamble
+
+    set y, 0
+    :draw_map__outer_loop
+        ife y, VIEW_HEIGHT
+            set pc, postamble
+
+        set x, 0
+        :draw_map__inner_loop
+            ife x, VIEW_WIDTH
+                set pc, draw_map__exit_inner
+
+            set b, y
+            mul b, 32
+            set c, x
+            mul c, 2
+            add b, c
+            add b, videoram
+
+            set a, [pc_y]
+            sub a, 5
+            add a, y
+            ifu a, 0
+                set pc, draw_map__out
+            ifa a, MAP_HEIGHT - 1
+                set pc, draw_map__out
+            mul a, MAP_WIDTH
+
+            set c, [pc_x]
+            sub c, 5
+            add c, x
+            ifu c, 0
+                set pc, draw_map__out
+            ifa c, MAP_WIDTH - 1
+                set pc, draw_map__out
+            add c, map_buffer
+            add a, c
+
+            set a, [a]
+            set [b], a
+            add a, 1
+            set [b+1], a
+
+            add x, 1
+            set pc, draw_map__inner_loop
+
+            :draw_map__out
+                set [b], NOT_SEEN_BLOCK
+                set [b+1], NOT_SEEN_BLOCK
+                add x, 1
+                set pc, draw_map__inner_loop
+
+        :draw_map__exit_inner
+        add y, 1
+        set pc, draw_map__outer_loop

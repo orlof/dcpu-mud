@@ -1,0 +1,56 @@
+;----------------------------------------------------------------
+; GLOBAL HW VARIABLES
+;----------------------------------------------------------------
+:keyboard           DAT 0xffff
+:monitor            DAT 0xffff
+:clock              DAT 0xffff
+:floppy             DAT 0xffff
+:hic                DAT 0xffff
+:rci                DAT 0xffff
+
+:key_handlers
+    DAT KEY_UP, action__move_north
+    DAT KEY_DOWN, action__move_south
+    DAT KEY_LEFT, action__move_west
+    DAT KEY_RIGHT, action__move_east
+    DAT 'q', action__quit
+    dat 0
+
+:valid_room_heights DAT 3, 5, 7, 9
+:valid_room_widths  DAT 3, 5, 7, 9
+
+:line dat 0
+
+:quit_message           DAT "Quit on level", 0
+:dead_message           DAT "Died on level", 0
+:press_any_key_str      DAT "Press any key", 0
+
+:pc_x dat 1
+:pc_y dat 1
+
+:tiles dat TILE_UP, TILE_WALL, TILE_FLOOR
+
+:welcome_screen
+    DAT 0
+    DAT 0
+    DAT "Come", 0
+    DAT "Taste the wine", 0
+    DAT "Race the blind", 0
+    DAT "They will guide you",0
+    DAT "from the light", 0
+    DAT "Writing noughts ", 0
+    DAT "till the end of time", 0
+    DAT 0
+    DAT "Journey Onward", 0
+    DAT 0xffff
+
+:escape_screen
+    DAT 0
+    DAT 0
+    DAT "Congratulations!", 0
+    DAT 0
+    DAT "You escaped the", 0
+    DAT "Dungeon of Dragons",0
+    DAT 0xffff
+
+:level dat 0

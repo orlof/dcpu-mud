@@ -1,0 +1,337 @@
+;----------------------------------------------------------------
+:detect_hardware
+;----------------------------------------------------------------
+    hwn i
+:detect_hardware__loop
+    ife i, 0
+       set pc, pop
+    sub i, 1
+    hwq i
+    ife a, 0xf615
+        ife b, 0x7349
+            set [monitor], i
+    ife a, 0x7406
+        ife b, 0x30cf
+            set [keyboard], i
+    ife a, 0xb402
+        ife b, 0x12d0
+            set [clock], i
+    ife a, 0x24c5
+        ife b, 0x4fd5
+            set [floppy], i
+    ife a, 0x9088
+        ife b, 0xe023
+            set [hic], i
+    ife a, 0x90a5
+        ife b, 0xd005
+            set [rci], i
+    set pc, detect_hardware__loop
+
+;----------------------------------------------------------------
+; RANDOM NUMBER GENERATORS
+;----------------------------------------------------------------
+:rnd_lfsr_seed     dat 0xbe8c,0x8000 ; 1st is anything but zero. 2nd should be 8000 or 0000
+:rnd_lfsr_poly     dat 0xb400
+
+:rnd ; return pseudo-random 0000-FFFF in x
+    set x, [rnd_lfsr_seed]
+    shr x, 1
+    bor x, [rnd_lfsr_seed + 1]
+    set [rnd_lfsr_seed + 1], ex
+    ifn ex, 0
+        xor x, [rnd_lfsr_poly]
+    set [rnd_lfsr_seed], x
+    set pc, pop
+
+;----------------------------------------------------------------
+:delay
+;----------------------------------------------------------------
+    set i, [sp + 1]
+    set [sp], pop
+
+:delay_loop
+    ife i, 0
+        set pc, pop
+    std pc, delay_loop
+
+;----------------------------------------------------------------
+:press_any_key
+;----------------------------------------------------------------
+    set a, 0
+    hwi [keyboard]
+
+    set a, 1
+:press_any_key_loop
+    add [rnd_lfsr_seed], 1
+    hwi [keyboard]
+
+    ife c, 0
+        set pc, press_any_key_loop
+
+    ife [rnd_lfsr_seed], 0
+        set [rnd_lfsr_seed], 0xbe8c
+
+    set pc, pop
+
+;----------------------------------------------------------------
+:input_handler
+; [sp+1] table
+;----------------------------------------------------------------
+    set x, [sp+1]
+    ife [x], 0
+        set pc, input_handler_end
+
+    set a, 2
+    set b, [x]
+    hwi [keyboard]
+
+    ife c, 1
+        jsr [x+1]
+
+    add [sp+1], 2
+    set pc, input_handler
+
+:input_handler_end
+    set [sp], pop
+    set pc, pop
+
+;----------------------------------------------------------------
+:key_typed_handler
+; [sp+1] table
+;----------------------------------------------------------------
+    set a, 0
+    hwi [keyboard]
+
+:key_typed__loop
+    set a, 1
+    hwi [keyboard]
+
+    ife c, 0
+        set pc, key_typed__loop
+
+    set x, [sp + 1]
+:key_typed_handler__loop
+    ife [x], 0
+        set pc, key_typed_handler
+
+    ife c, [x]
+        set pc, key_typed_handler__end
+
+    add x, 2
+    set pc, key_typed_handler__loop
+
+:key_typed_handler__end
+    jsr [x+1]
+
+    set [sp], pop
+    set pc, pop
+
+;----------------------------------------------------------------
+:centre_page
+; (*char)
+;----------------------------------------------------------------
+    set push, 1
+    jsr preamble
+
+    set x, ARG_1_OF_1
+:centre_page__loop
+    ife [x], 0xffff
+        set pc, postamble
+
+    set push, x
+    jsr centre
+
+    set pc, centre_page__loop
+
+;----------------------------------------------------------------
+:centre
+; (*char)
+;----------------------------------------------------------------
+    set push, 1
+    jsr preamble
+
+    set push, ARG_1_OF_1
+        jsr strlen
+
+    set b, ARG_1_OF_1
+    add b, x
+    add b, 1
+
+    set y, 32
+    sub y, x
+    div y, 2
+
+    set a, [line]
+    mul a, 32
+    add a, y
+    add a, videoram
+
+    set push, ARG_1_OF_1
+    set push, a
+        jsr strcpy
+
+    add [line], 1
+
+    set x, b
+
+    set pc, postamble
+
+;----------------------------------------------------------------
+:strlen
+; (*char)
+;----------------------------------------------------------------
+    set x, [sp+1]
+:strlen__loop
+    ife [x], 0
+        set pc, strlen__loop__end
+    add x, 1
+    set pc, strlen__loop
+:strlen__loop__end
+    sub x, [sp+1]
+    set [sp], pop
+    set pc, pop
+
+ ;----------------------------------------------------------------
+ :strcpy
+ ; (char *src, char *dst)
+ ;----------------------------------------------------------------
+     set push, 2
+     jsr preamble
+
+     set i, ARG_1_OF_2
+     set j, ARG_2_OF_2
+ :strcpy__loop
+     ife [i], 0
+         set pc, postamble
+
+     set [j], [i]
+     bor [j], 0xe000
+
+     sti pc, strcpy__loop
+
+;----------------------------------------------------------------
+:print_str
+; (x, y, *char)
+;----------------------------------------------------------------
+    set push, 3
+    jsr preamble
+
+    set i, ARG_2_OF_3
+    mul i, 32
+    add i, ARG_1_OF_3
+    add i, videoram
+
+    set j, ARG_3_OF_3
+:print_str_loop
+    ife [j], 0
+        set pc, postamble
+
+    set [i], [j]
+    bor [i], 0xf000
+
+    sti pc, print_str_loop
+
+;----------------------------------------------------------------
+:print_word
+;----------------------------------------------------------------
+    set i, [sp + 2]
+    mul i, 32
+    add i, [sp + 3]
+    add i, videoram
+    add i, 4
+
+    set c, 1
+:print_word_loop
+    set b, [sp + 1]
+    div b, c
+    mod b, 10
+    add b, NUMBER_CHAR_0
+    bor b, 0xf000
+    std [i], b
+
+    ife c, 10000
+        set pc, print_end
+
+    mul c, 10
+    set pc, print_word_loop
+
+:print_end
+    set [sp], pop
+    set [sp], pop
+    set [sp], pop
+    set pc, pop
+
+;----------------------------------------------------------------
+:clear_screen
+;----------------------------------------------------------------
+    set [line], 0
+    set x, videoram
+
+:clear_screen__loop
+    ife x, videoram__end
+        set pc, pop
+
+    set [x], 0xf020
+    add x, 1
+    set pc, clear_screen__loop
+
+;----------------------------------------------------------------
+; utility subroutines to handle function setup and cleanup
+;----------------------------------------------------------------
+
+; postamble - subroutines must call postamble to return from
+; if subroutine was intitialized by preamble. postamble will
+; restore register and stack to original state and do rts.
+; x:   return value
+:postamble
+    set sp, z                ; copy rts on top of arg1
+    add z, [z+7]
+    set [z+8], [sp+8]
+
+    set z, pop                ; restore fp
+    set y, pop                ; restore registers
+    set j, pop
+    set i, pop
+    set c, pop
+    set b, pop
+    set a, pop
+
+    add sp, pop                ; pop sizeof(heap refs)
+
+    set pc, pop                ; rts
+
+; preamble - subroutines must
+;  1. push number of subroutine arguments
+;  2. call preamble before doing ANYTHING else
+;
+; Stack after preamble
+;          [caller]
+; [sp+10] [fp+10] arg1 (leftmost)
+; [sp+ 9] [fp+ 9] arg2 (rightmost)
+; [sp+ 8] [fp+ 8] RTS (to caller func)
+;          [callee]
+; [sp+ 7] [fp+ 7] sizeof(args) (e.g. 2)
+;          [preamble]
+; [sp+ 6] [fp+ 6] a
+; [sp+ 5] [fp+ 5] b
+; [sp+ 4] [fp+ 4] c
+; [sp+ 3] [fp+ 3] i
+; [sp+ 2] [fp+ 2] j
+; [sp+ 1] [fp+ 1] y
+; [sp+ 0] [fp+ 0] FP (<-z)
+:preamble
+    set x, pop                ; pop return address
+
+    ; store registers
+    set push, a
+    set push, b
+    set push, c
+    set push, i
+    set push, j
+    set push, y
+
+    ; update frame pointer
+    set push, z                ; old fp
+    set z, sp                ; new fp
+
+    set pc, x

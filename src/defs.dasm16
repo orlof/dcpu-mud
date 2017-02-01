@@ -1,0 +1,53 @@
+#define MAP_WIDTH       49
+#define MAP_HEIGHT      49
+#define ROOM_CANDIDATES 40
+
+#define KEY_UP          0x80
+#define KEY_DOWN        0x81
+#define KEY_LEFT        0x82
+#define KEY_RIGHT       0x83
+
+#define TILE_UP         0x2000
+#define TILE_WALL       0x3202
+#define TILE_FLOOR      0x2004
+#define NOT_SEEN_BLOCK  0xf020
+
+#define MAP_WALL        0x0002
+
+#define TILE_PC         0x1010
+
+#define VIEW_WIDTH      11
+#define VIEW_HEIGHT     11
+
+#define NUMBER_CHAR_0       '0'
+
+#define NONE                0
+#define TRUE                1
+#define FALSE               0
+
+#define ARG_1_OF_1          [z + 9]
+
+#define ARG_1_OF_2          [z + 10]
+#define ARG_2_OF_2          [z + 9]
+
+#define ARG_1_OF_3          [z + 11]
+#define ARG_2_OF_3          [z + 10]
+#define ARG_3_OF_3          [z + 9]
+
+#define ARG_1_OF_4          [z + 12]
+#define ARG_2_OF_4          [z + 11]
+#define ARG_3_OF_4          [z + 10]
+#define ARG_4_OF_4          [z + 9]
+
+#define ARG_1_OF_5          [z + 13]
+#define ARG_2_OF_5          [z + 12]
+#define ARG_3_OF_5          [z + 11]
+#define ARG_4_OF_5          [z + 10]
+#define ARG_5_OF_5          [z + 9]
+
+#define ARG_1_OF_6          [z + 14]
+#define ARG_2_OF_6          [z + 13]
+#define ARG_3_OF_6          [z + 12]
+#define ARG_4_OF_6          [z + 11]
+#define ARG_5_OF_6          [z + 10]
+#define ARG_6_OF_6          [z + 9]
