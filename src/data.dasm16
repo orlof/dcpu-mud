@@ -8,6 +8,7 @@
 :floppy             DAT 0xffff
 :hic                DAT 0xffff
 :rci                DAT 0xffff
+:speaker            DAT 0xffff
 
 :key_handlers
     DAT KEY_UP, action__move_north
