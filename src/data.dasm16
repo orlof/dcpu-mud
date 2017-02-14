@@ -2,6 +2,7 @@
 ; GLOBAL HW VARIABLES
 ;----------------------------------------------------------------
 :keyboard           DAT 0xffff
+:pixie              DAT 0xffff
 :monitor            DAT 0xffff
 :clock              DAT 0xffff
 :floppy             DAT 0xffff
